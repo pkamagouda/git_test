@@ -1,0 +1,222 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job will deploy the latest release on the web logic server.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>-1</daysToKeep>
+        <numToKeep>10</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@3.9.1">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/pkamagouda/Test_O2.git</url>
+        <credentialsId>1ccb2e10-e0ee-473a-a4a8-2a7f00ff9a9a</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>cp -r /home/cts1/.jenkins/workspace/Hello_Git_Pull/* .
+
+cd Hello
+echo &quot;Updating the release version in the release-info.txt file&quot;
+last_rel=`awk &apos;FNR == 6 {print $2}&apos; release-info.txt | cut -d &apos;.&apos; -f 3`
+rel=&quot;$((last_rel + 1))&quot;
+sed -i -e &quot;s/1_0_${last_rel}*/1_0_${rel}/g&quot; -e &quot;s/1.0.${last_rel}/1.0.${rel}/g&quot; release-info.txt
+
+git add release-info.txt
+git commit -m &quot;adding latest file&quot;
+
+
+cd ..
+cp -r Hello/* .
+chmod 777 HelloDeploy.sh
+echo &quot;For creating zip file with the version name&quot;
+Temp1=`awk &apos;FNR == 6 {print $2}&apos; release-info.txt`
+echo value1=${Temp1} &gt; osb.property
+
+
+echo &quot;Selecting the last fields of the source code file&quot;
+Temp2=`find . -name Hello_Osb* | cut -d &quot;_&quot; -f 3,4,5`
+echo value2=${Temp2} &gt; osb1.property
+
+
+echo password=${pass} &gt; secret.property
+
+</command>
+    </hudson.tasks.Shell>
+    <EnvInjectBuilder plugin="envinject@2.1.3">
+      <info>
+        <propertiesFilePath>osb.property</propertiesFilePath>
+      </info>
+    </EnvInjectBuilder>
+    <EnvInjectBuilder plugin="envinject@2.1.3">
+      <info>
+        <propertiesFilePath>osb1.property</propertiesFilePath>
+      </info>
+    </EnvInjectBuilder>
+    <EnvInjectBuilder plugin="envinject@2.1.3">
+      <info>
+        <propertiesFilePath>secret.property</propertiesFilePath>
+      </info>
+    </EnvInjectBuilder>
+    <hudson.tasks.Maven>
+      <targets>compile</targets>
+      <mavenName>MAVEN_HOME</mavenName>
+      <pom>pom.xml</pom>
+      <properties>zip_name=${value1}
+file_name=${value2}</properties>
+      <usePrivateRepository>false</usePrivateRepository>
+      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
+      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
+      <injectBuildVariables>false</injectBuildVariables>
+    </hudson.tasks.Maven>
+    <hudson.tasks.Shell>
+      <command>echo &quot;Copy the zip and deploy script to the goto server&quot;
+sshpass -p &quot;${password}&quot; scp -pr Hello_Osb_${value1}.zip kamagp@goto.ref.o2.co.uk:/home/kamagp
+rm -rf secret.property
+sshpass -p &quot;${password}&quot; scp -pr HelloDeploy.sh kamagp@goto.ref.o2.co.uk:/home/kamagp
+
+echo &quot;From goto server copy the zip and deploy script to the colombes server&quot;
+sshpass -p &quot;${password}&quot; ssh -tt kamagp@goto.ref.o2.co.uk &quot;scp -pr /home/kamagp/HelloDeploy.sh kamagp@colombes:/home/kamagp&quot;
+sshpass -p &quot;${password}&quot; ssh -tt kamagp@goto.ref.o2.co.uk &quot;scp -pr /home/kamagp/Hello_Osb_${value1}.zip kamagp@colombes:/tmp&quot;
+
+echo &quot;Execute the deploy script&quot;
+sshpass -p &quot;${password}&quot; ssh -tt kamagp@goto.ref.o2.co.uk &quot;ssh -tt colombes &apos;./HelloDeploy.sh Hello_Osb_${value1}.zip&apos;&quot;</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.plugins.git.GitPublisher plugin="git@3.9.1">
+      <configVersion>2</configVersion>
+      <pushMerge>false</pushMerge>
+      <pushOnlyIfSuccess>true</pushOnlyIfSuccess>
+      <forcePush>false</forcePush>
+      <branchesToPush>
+        <hudson.plugins.git.GitPublisher_-BranchToPush>
+          <targetRepoName>origin</targetRepoName>
+          <branchName>master</branchName>
+        </hudson.plugins.git.GitPublisher_-BranchToPush>
+      </branchesToPush>
+    </hudson.plugins.git.GitPublisher>
+    <hudson.plugins.emailext.ExtendedEmailPublisher plugin="email-ext@2.63">
+      <recipientList>$DEFAULT_RECIPIENTS</recipientList>
+      <configuredTriggers>
+        <hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+          <email>
+            <recipientList>prapulita2294@gmail.com</recipientList>
+            <subject>[Automated Release Notification] - build failed</subject>
+            <body>Please refer the attached log to check the reason for ${JOB_NAME} job failure.
+</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.DevelopersRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>true</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>both</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+        <hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+          <email>
+            <recipientList>prapulita2294@gmail.com</recipientList>
+            <subject>[Automated Release Notification] - 1 release(s) were built.</subject>
+            <body>&lt;html&gt;
+
+   &lt;head&gt;
+      &lt;title&gt;Sending mail&lt;/title&gt;
+   &lt;/head&gt;
+	
+   &lt;body&gt;
+      &lt;table width=&quot;80%&quot; height=&quot;30&quot;&gt;
+          &lt;tr bgcolor=&quot;DarkSlateBlue&quot;&gt;
+          &lt;td&gt;
+        &lt;font size=&quot;4&quot; color=&quot;white&quot;&gt;
+Service Factory Release Manager for OSB - 1.0 &lt;/font&gt;
+&lt;/td&gt;
+
+&lt;/tr&gt;
+&lt;/table&gt;
+    &lt;tr&gt;
+         &lt;b&gt; &lt;font size=&quot;5&quot; &gt;Service Factory Release Notification &lt;/font&gt;&lt;/b&gt;
+    &lt;/tr&gt;
+      &lt;table border=&quot;1&quot; cellpadding = &quot;5&quot; cellspacing = &quot;5&quot; &gt;
+         &lt;tr bgcolor = &quot;WhiteSmoke&quot;&gt;
+            &lt;th&gt;Service Name&lt;/th&gt;
+            &lt;th&gt;Auto-generated Release Note Link in git hub&lt;/th&gt;
+         &lt;/tr&gt;
+         &lt;tr&gt;
+            &lt;td&gt;Hello_Osb_1_0&lt;/td&gt;
+            &lt;td&gt; &lt;a href=&quot;https://github.com/pkamagouda/Test_O2/blob/master/Hello/release-info.txt&quot;&gt;https://github.com/pkamagouda/Test_O2/blob/master/Hello/Hello_Osb_release_${value1}&lt;/a&gt; &lt;/td&gt;
+         &lt;/tr&gt;
+
+     &lt;/table&gt;
+   &lt;/body&gt;
+   
+&lt;/html&gt;</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.DevelopersRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>both</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+      </configuredTriggers>
+      <contentType>default</contentType>
+      <defaultSubject>$DEFAULT_SUBJECT</defaultSubject>
+      <defaultContent>$DEFAULT_CONTENT</defaultContent>
+      <attachmentsPattern></attachmentsPattern>
+      <presendScript>$DEFAULT_PRESEND_SCRIPT</presendScript>
+      <postsendScript>$DEFAULT_POSTSEND_SCRIPT</postsendScript>
+      <attachBuildLog>false</attachBuildLog>
+      <compressBuildLog>false</compressBuildLog>
+      <replyTo>$DEFAULT_REPLYTO</replyTo>
+      <from></from>
+      <saveOutput>false</saveOutput>
+      <disabled>false</disabled>
+    </hudson.plugins.emailext.ExtendedEmailPublisher>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.36">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <EnvInjectPasswordWrapper plugin="envinject@2.1.3">
+      <injectGlobalPasswords>true</injectGlobalPasswords>
+      <maskPasswordParameters>true</maskPasswordParameters>
+      <passwordEntries>
+        <EnvInjectPasswordEntry>
+          <name>pass</name>
+          <value>{AQAAABAAAAAQPsegrozC5lW5OQcWPb/MUeI7oL6+GsZO8ICQly06jc8=}</value>
+        </EnvInjectPasswordEntry>
+      </passwordEntries>
+    </EnvInjectPasswordWrapper>
+  </buildWrappers>
+</project>

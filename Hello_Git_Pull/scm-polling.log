@@ -1,0 +1,6 @@
+Started on 23 Oct, 2018 9:22:00 PM
+Using strategy: Default
+[poll] Last Built Revision: Revision ba3d2cd3a9435c76de1e0f810cd25e0504f3187f (refs/remotes/origin/master)
+ > git --version # timeout=10
+using GIT_ASKPASS to set credentials 
+ > git ls-remote -h https://github.com/pkamagouda/Hello.git # timeout=10
